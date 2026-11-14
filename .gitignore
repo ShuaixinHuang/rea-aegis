@@ -7,3 +7,7 @@ dist/
 .coverage
 .ruff_cache/
 *.sarif
+
+*.key
+*.aegis
+/protected/

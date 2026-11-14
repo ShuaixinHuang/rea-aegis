@@ -1,7 +1,11 @@
 # Security model
 
-REAegis reads locally selected release artifacts. It does not execute artifact code,
-fetch mapping URLs, extract archive members, or install analysis providers.
+REAegis separates read-only auditing, byte-copy hardening, authenticated protection
+and explicit execution. Audit and harden do not execute artifact code, fetch mapping
+URLs, extract archive members or install providers. `protect-js` parses CommonJS
+without running it. `run-native` executes your authenticated ELF; `gateway-serve`
+loads your selected operator-owned Python handler. Treat both execution commands
+as application operations with the caller's operating-system authority.
 
 The intended host has a trusted filesystem: inputs and output parents must not be
 concurrently modified by an attacker. Regular file descriptors are checked against
@@ -38,3 +42,25 @@ For ordinary bugs, open an issue with a minimal synthetic input. For sensitive
 security reports, use GitHub's private vulnerability reporting if enabled, or
 contact the repository owner before sharing a reproducer. Never attach live keys,
 private customer software or credentials to public issues.
+
+## Code protection and server authority
+
+Authenticated envelopes use AES-256-GCM with fresh random 96-bit nonces and
+purpose-specific HKDF-SHA256 keys. Format and payload purpose are authenticated.
+Authentication completes before plaintext is passed to module compilation or ELF
+execution. Keep master keys outside release output and distribute runtime keys
+through your access-control mechanism. POSIX key permissions are checked; Windows
+key-file ACL policy belongs to the operator's credential storage.
+
+The client runtime, interpreter and privileged host remain trusted. Protecting a
+payload does not hide plaintext from a host that legitimately possesses its key and
+controls its execution. Linux memory execution changes executable-relative lookup
+context; run integration checks for `$ORIGIN`, `/proc/self/exe` and native resources.
+
+The gateway keeps its handler and HMAC master key server-side. Its short-lived
+capabilities are bearer credentials. Use HTTPS at an authenticated reverse proxy,
+keep capability issuance private, validate business inputs in the selected handler,
+and manage key rotation/revocation in your deployment. The bundled listener binds
+loopback, bounds connection/body/response sizes and tracks replay/rate state in
+memory. A shared durable ledger is required across replicas and restarts. Handler
+code and its computation/allocations are operator-owned, not sandboxed.

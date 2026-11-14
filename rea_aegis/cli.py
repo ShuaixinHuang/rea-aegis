@@ -12,6 +12,9 @@ from . import __version__
 from .artifacts import Limits
 from .audit import SEVERITY, audit, exit_status, sarif
 from .harden import harden, verify
+from .protect import keygen, protect as protect_payload, run_native
+from .gateway import export_client, issue_token, serve
+from .protect import read_key
 
 
 def positive(value: str) -> int:
@@ -60,6 +63,44 @@ def main(argv: list[str] | None = None) -> int:
         metavar="TRUSTED_DIGEST",
         help="Pin a receipt hash recorded outside the output",
     )
+    generate = commands.add_parser(
+        "keygen", help="Create an external owner-only 32-byte protection key"
+    )
+    generate.add_argument("path", type=Path)
+    for command, kind in [("protect-js", "commonjs"), ("protect-native", "linux-elf")]:
+        cipher = commands.add_parser(
+            command, help=f"Authenticated encryption for {kind} with an external key"
+        )
+        cipher.add_argument("source", type=Path)
+        cipher.add_argument("output", type=Path)
+        cipher.add_argument("--key-file", type=Path, required=True)
+        cipher.set_defaults(kind=kind)
+    launch = commands.add_parser(
+        "run-native",
+        help="Authenticate and launch an owned ELF from a Linux memory file",
+    )
+    launch.add_argument("artifact", type=Path)
+    launch.add_argument("--key-file", type=Path, required=True)
+    launch.add_argument("arguments", nargs="*", help="Arguments to the ELF, after --")
+    token = commands.add_parser(
+        "gateway-token", help="Issue a short-lived gateway capability (server operator)"
+    )
+    token.add_argument("--key-file", type=Path, required=True)
+    token.add_argument("--subject", required=True)
+    token.add_argument("--ttl", type=positive, default=300)
+    server = commands.add_parser(
+        "gateway-serve",
+        help="Serve operator-owned logic on loopback; use a TLS reverse proxy externally",
+    )
+    server.add_argument("--key-file", type=Path, required=True)
+    server.add_argument("--handler", required=True, help="/path/handler.py:function")
+    server.add_argument("--port", type=positive, default=8765)
+    client = commands.add_parser(
+        "gateway-client",
+        help="Export an ESM client containing only the endpoint contract",
+    )
+    client.add_argument("endpoint")
+    client.add_argument("output", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "audit":
@@ -87,16 +128,35 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 )
             return exit_status(report, args.fail_on)
-        result = (
-            harden(
-                args.source,
-                args.output,
-                remove_maps=args.remove_source_maps,
-                omit=args.omit,
+        if args.command == "keygen":
+            result = keygen(args.path)
+        elif args.command.startswith("protect-"):
+            result = protect_payload(args.source, args.output, args.key_file, args.kind)
+        elif args.command == "run-native":
+            run_native(args.artifact, args.key_file, args.arguments)
+            return 0
+        elif args.command == "gateway-token":
+            result = {
+                "token": issue_token(read_key(args.key_file), args.subject, args.ttl)
+            }
+        elif args.command == "gateway-client":
+            result = export_client(args.endpoint, args.output)
+        elif args.command == "gateway-serve":
+            if args.port > 65535:
+                raise ValueError("Port must be in 1..65535")
+            serve(args.key_file, args.handler, args.port)
+            return 0
+        else:
+            result = (
+                harden(
+                    args.source,
+                    args.output,
+                    remove_maps=args.remove_source_maps,
+                    omit=args.omit,
+                )
+                if args.command == "harden"
+                else verify(args.directory, args.receipt_sha256)
             )
-            if args.command == "harden"
-            else verify(args.directory, args.receipt_sha256)
-        )
         print(json.dumps(result, indent=2))
         return 0
     except (OSError, ValueError, RuntimeError) as error:

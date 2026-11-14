@@ -2,13 +2,13 @@
 
 # REAegis
 
-**Reduce what your release gives away. Verify what you keep.**
+**Protect executable logic. Separate keys. Verify releases.**
 
 [![CI](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-REAegis protects release artifacts through exposure analysis, selective hardening, and verifiable integrity. Its local CLI helps software authors control the source, configuration and metadata available to REA and other reverse-engineering tools.
+REAegis combines authenticated code protection, server-side logic isolation and release verification. It gives software authors control over the executable code, keys and metadata available to REA and other reverse-engineering tools.
 
 [中文说明](docs/README.zh-CN.md) · [Threat model](SECURITY.md) · [Verification](docs/verification.md)
 
@@ -28,7 +28,7 @@ Protection mechanisms, supported formats and reproducible verification are docum
 
 ## Install
 
-Python 3.11+; **no runtime dependencies**. Version 0.1.0 is distributed on GitHub, not PyPI.
+Python 3.11+ with **no third-party Python runtime dependencies**. Authenticated code protection uses Node.js 20+ and its built-in cryptography. Version 0.1.0 is distributed on GitHub.
 
 ```bash
 python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.0"
@@ -36,6 +36,37 @@ rea-aegis --version
 ```
 
 Alternatively, install the wheel from [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases).
+
+## Three protection layers
+
+| Layer | Mechanism | Deployment |
+| --- | --- | --- |
+| JavaScript / TypeScript / Electron main | AES-256-GCM encrypted CommonJS, purpose-separated HKDF keys, authentication before module compilation | Compile/bundle to CommonJS; supply a key from outside the release |
+| Linux native executables | Whole-ELF authenticated encryption and memory-file execution | External key; Linux `memfd` launcher; original arguments forwarded |
+| Server-held logic | Server-only Python handler, signed short-lived capabilities, replay ledger and per-subject rate limits | Loopback gateway behind your HTTPS reverse proxy; generated ESM client |
+
+Keys are never embedded by the protection commands. The gateway exports the endpoint contract while retaining its master key and business handler on the server. The release verification layer records the resulting file inventory and hashes.
+
+```bash
+# Keep this directory outside anything you distribute.
+rea-aegis keygen ../operator/master.key
+mkdir protected
+
+# JS/TS: use the CommonJS output of your existing build. Electron main can point to this .cjs.
+rea-aegis protect-js ./dist/core.cjs ./protected/core.cjs --key-file ../operator/master.key
+REA_AEGIS_KEY_FILE=../operator/master.key node ./protected/core.cjs
+
+# Native: protect an owned Linux executable, then authenticate and execute from memory.
+rea-aegis protect-native ./dist/app ./protected/app.aegis --key-file ../operator/master.key
+rea-aegis run-native ./protected/app.aegis --key-file ../operator/master.key -- argument
+
+# Server: the handler and master key stay on the server.
+rea-aegis gateway-serve --handler /srv/private/policy.py:evaluate --key-file /srv/private/master.key
+rea-aegis gateway-token --subject customer-1 --ttl 300 --key-file /srv/private/master.key
+rea-aegis gateway-client https://api.example.com/v1/evaluate ./protected/client.mjs
+```
+
+See the [deployment guide](docs/protection.md) for key delivery, CommonJS/Electron integration, native runtime context and the gateway contract. The protection tests actually execute encrypted CommonJS and a self-owned C-produced ELF, exercise a generated client against a live local gateway, and reject missing keys, tampering, expired capabilities and replay.
 
 ## Use
 
@@ -56,7 +87,7 @@ rea-aegis audit ./protected
 
 `--omit` accepts exact, existing file paths relative to the input. It does not expand globs. Source maps are removed only after bounded JSON interpretation; malformed or oversized map files stop automatic removal rather than being deleted solely by extension. Choosing removals is your responsibility: an application may load a `.map` or configuration file at runtime. Always run your application's tests before shipping.
 
-The input is unchanged. Kept files retain their exact bytes, empty directories are preserved, and POSIX executable bits are checked. No in-place patching, network calls, target execution, or live debugger attachment occurs. Symlinks and special files are refused during hardening and verification.
+The input is unchanged. Kept files retain their exact bytes, empty directories are preserved, and POSIX executable bits are checked. `audit` and `harden` operate on file bytes. `run-native` explicitly executes an authenticated ELF payload; `gateway-serve` runs your selected server-side handler. Symlinks and special files are refused during hardening and verification.
 
 ### CI exit codes
 
@@ -78,6 +109,9 @@ Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and er
 | Electron ASAR audit | Packed member ranges and v3 maps; links/unpacked sidecars remain explicitly unexamined |
 | Directory hardening | Opt-in source-map removal and exact file omissions; separate output only |
 | Verification | File/directory inventory, SHA-256 bytes, POSIX executable state, optional external receipt hash pin |
+| Authenticated CommonJS protection | External key, AES-256-GCM/HKDF, preserved CommonJS module exports |
+| Native protection | Encrypted Linux ELF and authenticated `memfd` execution |
+| Logic gateway | Server-held handler, short-lived capabilities, replay/rate/capacity enforcement, generated Node ESM client |
 
 Rules observe v3 source maps and embedded sources, `sourceMappingURL` markers, private-key headers, credential-shaped tokens, `.env` files, source attachments, and debug sidecars. A credential candidate is not a validated credential. A source attachment may be necessary for normal operation. Native binaries are scanned for those byte markers only; their executable structures are not decoded.
 
@@ -110,13 +144,13 @@ ruff check .
 ruff format --check .
 ```
 
-Node.js is needed only for the optional real-runtime smoke test. CI installs it explicitly. Tests cover public CLI behavior, bounded/malformed containers, duplicate member provenance, symlinks, failure cleanup, deterministic receipts, inventory drift, receipt tampering and external trust pins. See [verification notes](docs/verification.md) for actual results and limitations.
+Node.js 20+ is required for protection and its runtime tests. CI installs it explicitly. Linux native execution tests additionally use a C compiler. Tests cover public CLI behavior, bounded/malformed containers, duplicate member provenance, symlinks, failure cleanup, deterministic receipts, inventory drift, receipt tampering and external trust pins. See [verification notes](docs/verification.md) for actual results and limitations.
 
 ## Roadmap
 
-1. Validate common Electron packaging layouts against producer-generated fixtures.
-2. Add explicit, format-aware rewriting only with corresponding runtime and packaging checks.
-3. Add signed release attestations with an external trust anchor.
+1. Extend Electron integration across common packaging and key-delivery workflows.
+2. Add native launch providers for more operating systems with real producer/runtime tests.
+3. Add signed release attestations and managed key-delivery adapters.
 
 Contributions should bring a concrete exposure, reproducible input, and verification for both normal and malformed cases. See [CONTRIBUTING.md](CONTRIBUTING.md).
 

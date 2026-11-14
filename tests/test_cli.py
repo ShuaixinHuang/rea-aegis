@@ -96,6 +96,27 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertFalse(json.loads(result.stderr)["ok"])
 
+    def test_operator_key_capability_and_client_cli_workflow(self):
+        from rea_aegis.gateway import verify_token
+        from rea_aegis.protect import read_key
+
+        key = self.root / "operator" / "master.key"
+        generated = self.cli("keygen", key)
+        self.assertEqual(generated.returncode, 0, generated.stderr)
+        issued = self.cli(
+            "gateway-token", "--key-file", key, "--subject", "ci-user", "--ttl", "60"
+        )
+        self.assertEqual(issued.returncode, 0, issued.stderr)
+        claims = verify_token(read_key(key), json.loads(issued.stdout)["token"])
+        self.assertEqual(claims["sub"], "ci-user")
+        client = self.root / "client.mjs"
+        exported = self.cli(
+            "gateway-client", "https://api.example.com/v1/evaluate", client
+        )
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        self.assertFalse(json.loads(exported.stdout)["server_logic_shipped"])
+        self.assertNotIn(read_key(key).hex(), client.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

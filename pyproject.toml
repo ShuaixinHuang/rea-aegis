@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rea-aegis"
 version = "0.1.0"
-description = "Audit, reduce, and verify release exposure to reverse engineering."
+description = "Authenticated code protection, server-held logic and release verification."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -25,3 +25,6 @@ Issues = "https://github.com/ShuaixinHuang/rea-aegis/issues"
 
 [tool.setuptools.packages.find]
 include = ["rea_aegis*"]
+
+[tool.setuptools.package-data]
+rea_aegis = ["assets/*.cjs"]

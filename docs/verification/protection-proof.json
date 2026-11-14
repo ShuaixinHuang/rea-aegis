@@ -1,0 +1,39 @@
+{
+  "tool_version": "0.1.0",
+  "node": "v24.22.1",
+  "source_sha256": "b58e761afa9beb317dcde85b1de1d630a3129dfbd78b0a2cb5645101b2873ee7",
+  "runtime_output": [
+    32,
+    111
+  ],
+  "module_export_matches": true,
+  "missing_key_rejected": true,
+  "artifact_bytes": {
+    "original": 163,
+    "protected": 5110
+  },
+  "analysis": {
+    "original": {
+      "graph_coverage": {
+        "status": "complete",
+        "truncated": false,
+        "omitted_count": 0,
+        "limits": []
+      },
+      "original_business_export_observed": true
+    },
+    "protected": {
+      "graph_coverage": {
+        "status": "complete",
+        "truncated": false,
+        "omitted_count": 0,
+        "limits": []
+      },
+      "original_business_export_observed": false
+    },
+    "operation": "analyze_javascript_application",
+    "timeout_ms": 30000,
+    "analyzer_source_revision": "4a4e9595131652e9c2e2c8401dce1fff0ca1c551",
+    "entry_sha256": "57a41eeefdee8b5882b08537820004dbb1cf53929aa196b4d86471be7865b83d"
+  }
+}

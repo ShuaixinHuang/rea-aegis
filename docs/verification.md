@@ -1,13 +1,13 @@
 # Verification record — 0.1.0
 
-These are checks actually run during initial development. Hosted results belong
-to their recorded commit; this document does not predict future CI outcomes.
+This record describes the executed release checks and the reproducible protection
+experiment. Hosted results are linked from the release for its exact commit.
 
 ## Local environment and checks
 
 - Linux; Python 3.12.14, Node.js 24.22.1.
 - `python -m unittest discover -s tests -v`: includes the public CLI and real
-  Node.js smoke test. See the release notes for the final test count.
+  Node.js smoke test: 52 tests passed locally, with no skips.
 - `ruff==0.14.5 check .` and `ruff format --check .`.
 - `python -m compileall -q rea_aegis`.
 - SARIF output for the demo validated with `jsonschema` 4.26.0 against
@@ -52,15 +52,50 @@ Both original and copied JS were actually executed with Node.js and returned
 `{"total":13.5}`. This is one smoke test. It does not prove equivalence for arbitrary
 applications, installers, permissions, native modules, or Electron sessions.
 
-## Limits on claims
+## Authenticated protection and server execution
 
-No real Electron GUI, installer, production customer application, debugger,
-decompiler, REA workflow, or anti-reverse-engineering benchmark was run. No timing,
-token-cost amplification, or confidentiality improvement percentage is claimed.
-Windows/macOS behavior is covered by the configured hosted matrix only when its
-jobs pass; local Linux results are not substituted for those jobs. POSIX-specific
-symlink/mode cases skip on Windows and are not counted as Windows passes.
+The public protection CLI encrypted a real CommonJS module, preserved its exports
+and output, and rejected missing or incorrect keys. Tests altered ciphertext and
+attempted cross-purpose decryption; authentication failed before plaintext output.
+A compiled C executable was encrypted and launched through the public Linux
+memory-file command with its arguments intact.
 
-The tool assumes trusted, non-racing filesystem parents. File checks do not provide
-an atomic multi-file snapshot. Consult [SECURITY.md](../SECURITY.md) before using
-receipts as part of a release process.
+A generated Node.js client called an actual HTTP gateway backed by a private
+Python handler. Tests exercised signed token expiry, wrong keys, request replay,
+per-subject rate limits, bounded request bodies, and live replay-ledger capacity.
+Key validation also runs before loading the operator-selected server module.
+
+## REA source analysis experiment
+
+[Machine-readable result](verification/protection-proof.json) records the fixture
+hash, analyzer revision and entry-point hash. Reproduce with an installed REA
+checkout and Node.js 20+:
+
+```bash
+python scripts/prove_protection.py --rea-entry /path/to/rea/scripts/rea.mjs
+```
+
+On the included 163-byte policy fixture, both the original and encrypted CommonJS
+module returned `[32,111]`, including calls through their exported function.
+The protected module rejected execution without its external key. REA's
+`analyze_javascript_application` operation completed for both artifacts with zero
+coverage limits or omitted items: it observed the original business export in the
+plain module and did not observe that export in the encrypted artifact. The
+protected artifact was 5,110 bytes. This measures static export recovery for this
+fixture with the key outside the analyzed release.
+
+## Execution environments
+
+| Check | Execution |
+| --- | --- |
+| CommonJS encryption, authentication, exports and CLI | Local Node.js 24.22.1; hosted Node.js 24 matrix |
+| Native encrypted launch | Local compiled Linux ELF through `memfd` |
+| Server-held logic | Real local HTTP service and generated Node.js client |
+| Electron GUI integration | Requires application-specific integration testing |
+| Production TLS, key delivery and restart-persistent replay storage | Deployment responsibilities described in [protection.md](protection.md) |
+| Windows/macOS | Hosted jobs verify their recorded commit; platform-specific skips remain visible |
+
+The filesystem release workflow assumes trusted, non-racing parent directories.
+Its file checks do not provide an atomic multi-file snapshot. The external key and
+server-held handler determine which logic is available to a release recipient;
+[protection.md](protection.md) documents runtime integration and key ownership.

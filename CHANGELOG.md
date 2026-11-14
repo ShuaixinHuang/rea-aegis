@@ -2,6 +2,10 @@
 
 ## 0.1.0 — 2026-11-14
 
+- Key-separated AES-256-GCM/HKDF protection for CommonJS and Linux ELF.
+- Authenticated CommonJS module loading and anonymous-memory ELF execution.
+- Server-held logic gateway with short-lived capabilities, bounded replay/rate state and a generated ESM client.
+
 - Read-only release exposure audit for directories, files, classic ZIP and Electron ASAR.
 - Bounded content scanning with explicit partial coverage, duplicate member identities,
   and sensitive-match reports without matched values.
