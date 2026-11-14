@@ -1,0 +1,1 @@
+{"version":3,"file":"main.js","sources":["private-pricing.ts"],"sourcesContent":["export function calculateTotal(prices: number[]) { return Math.round(prices.reduce((sum, price) => sum + price, 0) * 0.9 * 100) / 100; }"],"names":["calculateTotal","prices"],"mappings":"AAAA"}

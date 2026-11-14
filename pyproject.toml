@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools==84.2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rea-aegis"
+version = "0.1.0"
+description = "Audit, reduce, and verify release exposure to reverse engineering."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "ShuaixinHuang"}]
+keywords = ["release-security", "electron", "source-maps", "reverse-engineering"]
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent"]
+
+[project.optional-dependencies]
+dev = ["ruff==0.14.5"]
+
+[project.scripts]
+rea-aegis = "rea_aegis.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ShuaixinHuang/rea-aegis"
+Issues = "https://github.com/ShuaixinHuang/rea-aegis/issues"
+
+[tool.setuptools.packages.find]
+include = ["rea_aegis*"]
