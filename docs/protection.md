@@ -74,12 +74,15 @@ const result = await evaluate({ quantity: 3 });
 
 `POST /v1/evaluate` takes `Authorization: Bearer <capability>` and JSON with
 `nonce` (32 lowercase hex characters) and `input`. The generated client creates a
-fresh cryptographic nonce. The service permits 60 accepted requests per subject
+fresh cryptographic nonce. Subjects support up to 128 Unicode characters; encoded
+capabilities are bounded to 4 KiB. The service permits 60 accepted requests per subject
 per fixed 60-second window, rejects replay, and never evicts a live replay record to admit
 more traffic. Nonce and subject-window capacity is 10,000; overflow fails closed.
 
 The wire boundary admits 8 KiB requests, 64 KiB successful responses and 16 active
-connections. Network reads have a five-second timeout. Handler exceptions return
+connections. The five-second idle read timeout starts before the request line and headers,
+as well as covering request bodies. Expiry heaps retire only expired ledger
+records, avoiding a full live-ledger scan on each request. Handler exceptions return
 a fixed error rather than private code details. Operator-owned handler computation
 and allocations need application-level controls. The in-memory ledger resets when
 the service restarts; use a shared durable ledger for multi-instance/restart-stable

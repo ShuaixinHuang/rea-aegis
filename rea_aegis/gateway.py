@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hmac
+import heapq
 import importlib.util
 import json
 import re
@@ -70,7 +71,7 @@ def issue_token(
 
 
 def verify_token(master: bytes, token: str, now: int | None = None) -> dict:
-    if len(token) > 2048 or token.count(".") != 1:
+    if len(token) > 4096 or token.count(".") != 1:
         raise ArtifactError("Invalid capability")
     payload, signature = token.split(".")
     expected = hmac.digest(_token_key(master), payload.encode(), "sha256")
@@ -99,15 +100,20 @@ class RequestGuard:
         self.requests_per_minute = requests_per_minute
         self.nonces: dict[tuple[str, str], int] = {}
         self.windows: dict[str, tuple[int, int]] = {}
+        self._nonce_expiry: list[tuple[int, str, str]] = []
+        self._window_expiry: list[tuple[int, str]] = []
         self.lock = threading.Lock()
 
     def claim(self, subject: str, nonce: str, expiry: int, now: int) -> bool:
         with self.lock:
             # Never evict a live replay record to admit another request.
-            self.nonces = {key: end for key, end in self.nonces.items() if end > now}
-            self.windows = {
-                key: row for key, row in self.windows.items() if row[0] + 60 > now
-            }
+            # One heap entry per live record; only visit records that expired.
+            while self._nonce_expiry and self._nonce_expiry[0][0] <= now:
+                _, expired_subject, expired_nonce = heapq.heappop(self._nonce_expiry)
+                del self.nonces[(expired_subject, expired_nonce)]
+            while self._window_expiry and self._window_expiry[0][0] <= now:
+                _, expired_subject = heapq.heappop(self._window_expiry)
+                del self.windows[expired_subject]
             key = (subject, nonce)
             if (
                 expiry <= now
@@ -120,6 +126,9 @@ class RequestGuard:
             if count >= self.requests_per_minute:
                 return False
             self.nonces[key] = expiry
+            heapq.heappush(self._nonce_expiry, (expiry, subject, nonce))
+            if subject not in self.windows:
+                heapq.heappush(self._window_expiry, (start + 60, subject))
             self.windows[subject] = (start, count + 1)
             return True
 
@@ -159,6 +168,8 @@ class GatewayServer(ThreadingHTTPServer):
 
 
 class GatewayHandler(BaseHTTPRequestHandler):
+    # StreamRequestHandler.setup applies this before request lines or headers.
+    timeout = 5
     server_version = "REAegis"
     sys_version = ""
 
@@ -177,7 +188,6 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        self.connection.settimeout(5)
         if self.path != "/v1/evaluate":
             self._reply(404, {"error": "Unknown operation"})
             return

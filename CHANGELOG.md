@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-11-14
+
+- Apply idle connection timeouts before request-line/header parsing, releasing gateway worker slots for incomplete requests.
+- Index nonce and rate-window expiry with bounded heaps instead of scanning live records on every request.
+- Accept the full supported 128-character Unicode subject range in issued capabilities, retaining a 4 KiB encoded-token bound.
+- Add real-socket timeout/recovery, concurrent replay, expiry-boundary and Unicode regressions, plus a reproducible ledger benchmark.
+
 ## 0.1.0 — 2026-11-14
 
 - Key-separated AES-256-GCM/HKDF protection for CommonJS and Linux ELF.

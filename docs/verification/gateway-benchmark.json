@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-14",
+  "baseline_revision": "b9c491387eca3111a227f2a309b6315a893f947a",
+  "baseline_gateway_sha256": "78412b4a1bb16bd01b82e7efcb172a065fb47ec0ea82b5ca24cd54503b7ef1e9",
+  "optimized_gateway_sha256": "f01602dd911f873c04338cd8efca4bfe78dfa86b7925af477c4e85b7ec9d0e8f",
+  "before": {
+    "tool_version": "0.1.0",
+    "python": "3.12.14",
+    "platform": "Linux",
+    "records": 10000,
+    "replay_probes_per_sample": 2000,
+    "fill_seconds": 5.780211261007935,
+    "samples_seconds": [
+      2.21092853898881,
+      2.3060203499917407,
+      2.191652899986366,
+      2.1479215750005096,
+      2.282735197019065
+    ],
+    "median_probe_seconds": 0.001105464269494405,
+    "scope": "In-process replay rejection with live records; excludes HTTP, crypto and handler execution"
+  },
+  "after": {
+    "tool_version": "0.1.1",
+    "python": "3.12.14",
+    "platform": "Linux",
+    "records": 10000,
+    "replay_probes_per_sample": 2000,
+    "fill_seconds": 0.010196556977462023,
+    "samples_seconds": [
+      0.0006839769775979221,
+      0.0007094760076142848,
+      0.0009019849821925163,
+      0.0009139030007645488,
+      0.0006775879883207381
+    ],
+    "median_probe_seconds": 3.547380038071424e-07,
+    "scope": "In-process replay rejection with live records; excludes HTTP, crypto and handler execution"
+  }
+}

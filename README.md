@@ -28,10 +28,10 @@ Protection mechanisms, supported formats and reproducible verification are docum
 
 ## Install
 
-Python 3.11+ with **no third-party Python runtime dependencies**. Authenticated code protection uses Node.js 20+ and its built-in cryptography. Version 0.1.0 is distributed on GitHub.
+Python 3.11+ with **no third-party Python runtime dependencies**. Authenticated code protection uses Node.js 20+ and its built-in cryptography. Version 0.1.1 is distributed on GitHub.
 
 ```bash
-python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.0"
+python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.1"
 rea-aegis --version
 ```
 
@@ -99,7 +99,7 @@ The input is unchanged. Kept files retain their exact bytes, empty directories a
 
 Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and errors. Byte offsets identify sensitive matches without including matched values in reports; filenames and selected artifact paths remain visible.
 
-## Capabilities in 0.1.0
+## Capabilities in 0.1.1
 
 | Input / capability | Support |
 | --- | --- |

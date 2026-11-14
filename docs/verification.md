@@ -1,4 +1,4 @@
-# Verification record — 0.1.0
+# Verification record — 0.1.1
 
 This record describes the executed release checks and the reproducible protection
 experiment. Hosted results are linked from the release for its exact commit.
@@ -7,7 +7,7 @@ experiment. Hosted results are linked from the release for its exact commit.
 
 - Linux; Python 3.12.14, Node.js 24.22.1.
 - `python -m unittest discover -s tests -v`: includes the public CLI and real
-  Node.js smoke test: 53 tests passed locally, with no skips.
+  Node.js smoke test: 57 tests passed locally, with no skips.
 - `ruff==0.14.5 check .` and `ruff format --check .`.
 - `python -m compileall -q rea_aegis`.
 - SARIF output for the demo validated with `jsonschema` 4.26.0 against
@@ -18,6 +18,33 @@ archive range limits, ASAR external/unpacked coverage, symlink refusal, per-file
 and aggregate content limits, sensitive-value omission from JSON/SARIF, exact
 file omissions, exclusive output creation, cleanup after failed copy, deterministic
 receipts, empty directories, inventory drift, byte tampering, and trust pins.
+
+## Gateway availability and ledger performance
+
+A real-socket regression opens an idle connection and a second connection with
+incomplete HTTP headers. Version 0.1.0 leaves both readers waiting and the test
+fails with a client timeout. Version 0.1.1 applies the five-second idle read timeout
+before parsing the request line or headers. Both connections retire, the service
+accepts a subsequent authenticated request, and all 16 worker slots are reclaimed.
+Additional cases verify concurrent claims of one nonce succeed exactly once,
+nonce reuse after expiry, renewed subject windows, and maximum-length Unicode
+subjects through capability issue/verification.
+
+The ledger uses expiry heaps, visiting expired records instead of scanning all
+live records per request. [Recorded measurements](verification/gateway-benchmark.json)
+compare five samples of 2,000 rejected replay claims against 10,000 live records
+on Linux/Python 3.12.14:
+
+| In-process operation | 0.1.0 | 0.1.1 |
+| --- | ---: | ---: |
+| Median time per replay check | 1,105 µs | 0.355 µs |
+
+These measurements cover the ledger operation; HTTP, authentication and business
+handler execution are outside this benchmark. Reproduce from a source checkout:
+
+```bash
+python -m scripts.benchmark_gateway
+```
 
 ## Real producer check
 

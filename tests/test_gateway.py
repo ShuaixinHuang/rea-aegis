@@ -3,6 +3,8 @@ import json
 import os
 import secrets
 import shutil
+import socket
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import tempfile
 import threading
@@ -21,6 +23,81 @@ from rea_aegis.gateway import (
 
 
 class GatewayTests(unittest.TestCase):
+    def test_idle_and_incomplete_headers_close_and_release_worker_slots(self):
+        master = secrets.token_bytes(32)
+        server = GatewayServer(("127.0.0.1", 0), master, lambda value: value)
+        thread = threading.Thread(target=server.serve_forever)
+        clients = []
+        thread.start()
+        try:
+            for payload in (
+                b"",
+                b"POST /v1/evaluate HTTP/1.1\r\nHost: localhost\r\nX-Pending: ",
+            ):
+                client = socket.create_connection(server.server_address, timeout=10)
+                clients.append(client)
+                if payload:
+                    client.sendall(payload)
+            for client in clients:
+                self.assertEqual(
+                    client.recv(1),
+                    b"",
+                    "Incomplete headers must time out before POST dispatch",
+                )
+            connection = http.client.HTTPConnection(*server.server_address, timeout=3)
+            try:
+                connection.request(
+                    "POST",
+                    "/v1/evaluate",
+                    json.dumps({"nonce": "b" * 32, "input": 42}),
+                    {"Authorization": "Bearer " + issue_token(master, "after-timeout")},
+                )
+                response = connection.getresponse()
+                self.assertEqual(
+                    (response.status, json.loads(response.read())),
+                    (200, {"result": 42}),
+                )
+            finally:
+                connection.close()
+        finally:
+            for client in clients:
+                client.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(5)
+        acquired = 0
+        try:
+            while acquired < 16 and server.slots.acquire(blocking=False):
+                acquired += 1
+            self.assertEqual(acquired, 16)
+        finally:
+            for _ in range(acquired):
+                server.slots.release()
+
+    def test_reused_nonce_and_renewed_windows_expire_at_their_own_deadlines(self):
+        guard = RequestGuard(capacity=2, requests_per_minute=1)
+        self.assertTrue(guard.claim("a", "same", 2, 0))
+        self.assertFalse(guard.claim("a", "same", 100, 2))
+        self.assertTrue(guard.claim("b", "same", 120, 2))
+        self.assertTrue(guard.claim("a", "same", 180, 60))
+        self.assertFalse(guard.claim("a", "same", 180, 120))
+        self.assertTrue(guard.claim("b", "other", 200, 120))
+        self.assertTrue(guard.claim("a", "same", 240, 180))
+        self.assertFalse(guard.claim("a", "same", 240, 181))
+        self.assertLessEqual(len(guard.nonces), 2)
+        self.assertLessEqual(len(guard.windows), 2)
+
+    def test_concurrent_claims_execute_each_nonce_once(self):
+        guard = RequestGuard()
+        barrier = threading.Barrier(16)
+
+        def claim(_):
+            barrier.wait(timeout=5)
+            return guard.claim("one-subject", "one-nonce", 100, 1)
+
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            self.assertEqual(sum(pool.map(claim, range(16))), 1)
+
     def test_bad_server_key_fails_before_loading_handler(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -31,6 +108,17 @@ class GatewayTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 serve(root / "missing.key", f"{handler}:evaluate", 8765)
             self.assertFalse(marker.exists())
+
+    def test_maximum_unicode_subject_round_trips_with_bounded_capability(self):
+        key = secrets.token_bytes(32)
+        for subject in ("用户" * 64, "🤖" * 128):
+            token = issue_token(key, subject, now=100)
+            self.assertLessEqual(len(token), 4096)
+            self.assertEqual(verify_token(key, token, now=101)["sub"], subject)
+        with self.assertRaises(ArtifactError):
+            issue_token(key, "🤖" * 129)
+        with self.assertRaises(ArtifactError):
+            verify_token(key, "x" * 4097)
 
     def test_short_master_key_is_rejected(self):
         with self.assertRaises(ArtifactError):

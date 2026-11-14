@@ -11,7 +11,7 @@ REAegis 提供认证加密代码保护、服务端逻辑隔离与发布验证。
 需要 Python 3.11+，运行时没有第三方依赖。首版通过 GitHub 发布，尚未发布到 PyPI。
 
 ```bash
-python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.0"
+python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.1"
 rea-aegis audit ./dist
 rea-aegis audit ./app.asar --format json
 rea-aegis audit ./app.zip --format sarif > report.sarif

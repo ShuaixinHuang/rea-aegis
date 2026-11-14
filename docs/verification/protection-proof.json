@@ -1,5 +1,5 @@
 {
-  "tool_version": "0.1.0",
+  "tool_version": "0.1.1",
   "node": "v24.22.1",
   "source_sha256": "b58e761afa9beb317dcde85b1de1d630a3129dfbd78b0a2cb5645101b2873ee7",
   "runtime_output": [
