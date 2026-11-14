@@ -35,7 +35,7 @@ python -m pip install "git+https://github.com/ShuaixinHuang/rea-aegis.git@v0.1.1
 rea-aegis --version
 ```
 
-Alternatively, install the wheel from [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases).
+Source archives and release notes are available on [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases).
 
 ## Three protection layers
 
