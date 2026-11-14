@@ -46,10 +46,22 @@ def regular_file(path: Path) -> Iterator[BinaryIO]:
         raise ArtifactError(f"Not a regular file: {path}")
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     with os.fdopen(os.open(path, flags), "rb") as stream:
-        if identity(before) != identity(os.fstat(stream.fileno())):
-            raise ArtifactError(f"File changed before reading: {path}")
+        opened = os.fstat(stream.fileno())
+        # Path and descriptor APIs can expose different timestamp semantics.
+        # Bind object identity, then track each API's metadata against itself.
+        if (before.st_dev, before.st_ino, before.st_size) != (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_size,
+        ):
+            changed = ", ".join(
+                name
+                for name in ("st_dev", "st_ino", "st_size")
+                if getattr(before, name) != getattr(opened, name)
+            )
+            raise ArtifactError(f"File changed before reading ({changed}): {path}")
         yield stream
-        if identity(before) != identity(os.fstat(stream.fileno())):
+        if identity(opened) != identity(os.fstat(stream.fileno())):
             raise ArtifactError(f"File changed while reading: {path}")
         if identity(before) != identity(path.lstat()):
             raise ArtifactError(f"File path changed while reading: {path}")
