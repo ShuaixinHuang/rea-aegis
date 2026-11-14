@@ -101,7 +101,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     client.add_argument("endpoint")
     client.add_argument("output", type=Path)
-    args = parser.parse_args(argv)
+    values = list(sys.argv[1:] if argv is None else argv)
+    forwarded = []
+    # Split the native program's argv before argparse: Python 3.11 does not
+    # resume a starred positional after an intervening optional and separator.
+    if values[:1] == ["run-native"] and "--" in values:
+        separator = values.index("--")
+        forwarded = values[separator + 1 :]
+        values = values[:separator]
+    args = parser.parse_args(values)
+    if args.command == "run-native":
+        args.arguments.extend(forwarded)
     try:
         if args.command == "audit":
             limits = replace(

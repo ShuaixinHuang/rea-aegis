@@ -7,7 +7,7 @@ experiment. Hosted results are linked from the release for its exact commit.
 
 - Linux; Python 3.12.14, Node.js 24.22.1.
 - `python -m unittest discover -s tests -v`: includes the public CLI and real
-  Node.js smoke test: 52 tests passed locally, with no skips.
+  Node.js smoke test: 53 tests passed locally, with no skips.
 - `ruff==0.14.5 check .` and `ruff format --check .`.
 - `python -m compileall -q rea_aegis`.
 - SARIF output for the demo validated with `jsonschema` 4.26.0 against

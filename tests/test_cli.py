@@ -4,12 +4,36 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliTests(unittest.TestCase):
+    def test_native_separator_forwards_flags_and_empty_arguments_verbatim(self):
+        from rea_aegis.cli import main
+
+        with patch("rea_aegis.cli.run_native") as run:
+            self.assertEqual(
+                main(
+                    [
+                        "run-native",
+                        "program.aegis",
+                        "--key-file",
+                        "master.key",
+                        "--",
+                        "--key-file",
+                        "",
+                        "hello",
+                    ]
+                ),
+                0,
+            )
+        run.assert_called_once_with(
+            Path("program.aegis"), Path("master.key"), ["--key-file", "", "hello"]
+        )
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
