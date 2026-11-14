@@ -8,7 +8,7 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A local CLI for auditing release exposure, creating a hardened copy, and verifying its contents. Built for software authors who want to expose less source and metadata to REA and other reverse-engineering tools.
+REAegis protects release artifacts through exposure analysis, selective hardening, and verifiable integrity. Its local CLI helps software authors control the source, configuration and metadata available to REA and other reverse-engineering tools.
 
 [中文说明](docs/README.zh-CN.md) · [Threat model](SECURITY.md) · [Verification](docs/verification.md)
 
@@ -24,7 +24,7 @@ REAegis makes those observations explicit and provides a small, reviewable harde
 audit release → choose removals → create a separate copy → pin receipt → verify
 ```
 
-**This is release hardening, not a promise to prevent reverse engineering.** Runtime JavaScript remains readable. Client-side secrets remain recoverable. REAegis does not test whether a particular REA workflow can recover your program, and does not claim resistance to debuggers, decompilers, or runtime instrumentation. It is an independent project, not affiliated with REA.
+Protection mechanisms, supported formats and reproducible verification are documented below. See the [security model](SECURITY.md) for deployment boundaries and the [verification record](docs/verification.md) for test conditions. REAegis is independently maintained.
 
 ## Install
 
@@ -68,7 +68,7 @@ The input is unchanged. Kept files retain their exact bytes, empty directories a
 
 Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and errors. Byte offsets identify sensitive matches without including matched values in reports; filenames and selected artifact paths remain visible.
 
-## Scope in 0.1.0
+## Capabilities in 0.1.0
 
 | Input / capability | Support |
 | --- | --- |
@@ -78,8 +78,6 @@ Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and er
 | Electron ASAR audit | Packed member ranges and v3 maps; links/unpacked sidecars remain explicitly unexamined |
 | Directory hardening | Opt-in source-map removal and exact file omissions; separate output only |
 | Verification | File/directory inventory, SHA-256 bytes, POSIX executable state, optional external receipt hash pin |
-| ZIP/ASAR rewriting, ZIP64, recursive nested archives | Not implemented |
-| Obfuscation, binary rewriting, memory protection, anti-debugging | Not implemented |
 
 Rules observe v3 source maps and embedded sources, `sourceMappingURL` markers, private-key headers, credential-shaped tokens, `.env` files, source attachments, and debug sidecars. A credential candidate is not a validated credential. A source attachment may be necessary for normal operation. Native binaries are scanned for those byte markers only; their executable structures are not decoded.
 
@@ -101,7 +99,7 @@ node examples/demo/main.js
 node ../demo-protected/main.js
 ```
 
-Both Node commands print `{"total":13.5}`. The source map disappears; `main.js` remains byte-identical. Its mapping reference remains and is still reported at medium severity. This demonstrates one source exposure reduction and one runtime smoke test, not general equivalence or a measured anti-REA effectiveness claim.
+Both Node commands print `{"total":13.5}`. The source map disappears; `main.js` remains byte-identical. Its mapping reference remains and is still reported at medium severity. This demonstrates source exposure reduction with byte-preserved runtime code and matching application output. See the verification record for the complete test conditions.
 
 ## Develop
 
