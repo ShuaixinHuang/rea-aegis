@@ -26,6 +26,12 @@ class Limits:
     archive_bytes: int = 32 * 1024 * 1024
     header_bytes: int = 4 * 1024 * 1024
 
+    def __post_init__(self):
+        for name in self.__dataclass_fields__:
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ArtifactError(f"{name} must be a nonnegative integer")
+
 
 @dataclass(frozen=True)
 class Member:
@@ -78,11 +84,17 @@ def directory_members(root: Path, limits: Limits) -> Iterator[Member]:
         if not stat.S_ISDIR(directory.lstat().st_mode):
             raise ArtifactError(f"Directory changed during traversal: {directory}")
         with os.scandir(directory) as entries:
-            children = sorted(entries, key=lambda item: item.name)
+            children = []
+            for item in entries:
+                # Bound allocation before sorting, including entries already
+                # visited in other directories. Never materialize an entire
+                # oversized directory just to discover it exceeds the budget.
+                if count + len(children) >= limits.files:
+                    raise ArtifactError(f"Entry limit exceeded ({limits.files})")
+                children.append(item)
+            children.sort(key=lambda item: item.name)
         for item in children:
             count += 1
-            if count > limits.files:
-                raise ArtifactError(f"Entry limit exceeded ({limits.files})")
             path = Path(item.path)
             relative = path.relative_to(root).as_posix()
             info = path.lstat()

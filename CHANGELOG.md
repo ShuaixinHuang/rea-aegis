@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Enforce the shared directory entry budget during enumeration, before sorting or allocating an unbounded directory listing. Oversized directories fail closed with partial audit coverage.
+- Reject negative, boolean and non-integer scan limits; retain zero-byte budgets for inventory-only traversal.
+- Add regression coverage for bounded enumeration, resource cleanup and directory budget boundaries.
+
 ## 0.1.1 — 2026-11-14
 
 - Apply idle connection timeouts before request-line/header parsing, releasing gateway worker slots for incomplete requests.
