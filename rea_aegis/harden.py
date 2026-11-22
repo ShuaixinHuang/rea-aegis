@@ -223,7 +223,10 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
     digest = hashlib.sha256(data).hexdigest()
     if expected_receipt is not None and digest != expected_receipt:
         raise ArtifactError("Receipt does not match the externally pinned SHA-256")
-    receipt = parse_json(data)
+    try:
+        receipt = parse_json(data)
+    except RecursionError as error:
+        raise ArtifactError("Receipt JSON nesting exceeds the parser limit") from error
     if (
         not isinstance(receipt, dict)
         or type(receipt.get("schema_version")) is not int

@@ -165,6 +165,12 @@ class HardenTests(unittest.TestCase):
                 verify(self.output)
         inventory.assert_not_called()
 
+    def test_excessively_nested_receipt_fails_as_an_artifact_error(self):
+        self.harden()
+        (self.output / RECEIPT).write_bytes(b"[" * 10_000 + b"]" * 10_000)
+        with self.assertRaisesRegex(ArtifactError, "JSON nesting"):
+            verify(self.output)
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 
