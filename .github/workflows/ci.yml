@@ -56,3 +56,12 @@ jobs:
           python -m rea_aegis --version
           "$PYTHONPATH/bin/rea-aegis" --version
           python "$GITHUB_WORKSPACE/scripts/smoke_installed.py"
+      - name: Keep verified packages for download
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: rea-aegis-python-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
+          if-no-files-found: error
+          retention-days: 14
