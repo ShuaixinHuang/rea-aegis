@@ -137,6 +137,17 @@ class HardenTests(unittest.TestCase):
                 self.harden()
         self.assertFalse(self.output.exists())
 
+    def test_hardening_does_not_return_a_digest_for_a_replaced_receipt(self):
+        def replace_and_verify(root):
+            path = root / RECEIPT
+            path.write_bytes(path.read_bytes() + b" ")
+            return verify(root)
+
+        with patch("rea_aegis.harden.verify", side_effect=replace_and_verify):
+            with self.assertRaisesRegex(ArtifactError, "Receipt changed"):
+                self.harden()
+        self.assertFalse(self.output.exists())
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 

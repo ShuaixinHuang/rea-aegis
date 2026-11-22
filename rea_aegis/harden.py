@@ -186,12 +186,16 @@ def harden(
                 raise ArtifactError(f"Input changed during hardening: {name}")
         with (output / RECEIPT).open("xb") as stream:
             stream.write(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+        verification = verify(output)
+        if verification["receipt_sha256"] != digest:
+            raise ArtifactError("Receipt changed during hardening")
         return {
             "output": str(output),
             "kept_files": len(kept),
             "removed_files": len(removed),
-            "receipt_sha256": hashlib.sha256(encoded).hexdigest(),
-            "verification": verify(output),
+            "receipt_sha256": digest,
+            "verification": verification,
         }
     except BaseException:
         # Only remove the exact directory created by this invocation.
