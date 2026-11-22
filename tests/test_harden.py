@@ -60,6 +60,14 @@ class HardenTests(unittest.TestCase):
             with self.assertRaises(ArtifactError):
                 harden(self.source, output, remove_maps=True)
 
+    def test_reserved_receipt_directory_is_rejected_before_copying(self):
+        (self.source / RECEIPT).mkdir()
+        with patch("rea_aegis.harden.file_digest") as digest:
+            with self.assertRaisesRegex(ArtifactError, "reserved receipt path"):
+                self.harden()
+        digest.assert_not_called()
+        self.assertFalse(self.output.exists())
+
     def test_uninterpretable_maps_are_not_deleted_by_suffix(self):
         (self.source / "main.js.map").write_text("runtime lookup table")
         with self.assertRaises(ArtifactError):

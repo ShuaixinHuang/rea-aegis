@@ -113,9 +113,9 @@ def harden(
     ) or resolved_source.is_relative_to(resolved_output):
         raise ArtifactError("Input and output must be disjoint directories")
     names, directories = tree_inventory(source)
-    if RECEIPT in names:
+    if RECEIPT in names or RECEIPT in directories:
         raise ArtifactError(
-            "Input already contains a receipt; use the original release directory"
+            "Input already uses the reserved receipt path; use the original release directory"
         )
     omitted = {safe_relative(name) for name in (omit or [])}
     if not omitted.issubset(names):
