@@ -124,6 +124,22 @@ The input is unchanged. Kept files retain their exact bytes, empty directories a
 
 Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and errors. Byte offsets identify sensitive matches without including matched values in reports; filenames and selected artifact paths remain visible.
 
+### Use the audit as a CI gate
+
+Run the audit against the finished artifact. This Bash step preserves the report for inspection while forwarding the audit's original exit code to CI.
+
+```bash
+status=0
+rea-aegis audit ./dist --format json --fail-on high > rea-aegis-report.json || status=$?
+case "$status" in
+  1) echo "Review the findings that reached the release threshold." >&2 ;;
+  2) echo "Review coverage, unread members, and errors before releasing." >&2 ;;
+esac
+exit "$status"
+```
+
+Configure your CI to retain the report on failure if the scan output can be shared with everyone who has access to the job. Reports include paths and filenames.
+
 ## Capabilities in 0.1.1
 
 | Input / capability | Support |

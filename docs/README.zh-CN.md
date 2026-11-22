@@ -38,6 +38,8 @@ rea-aegis verify ./protected --receipt-sha256 从可信外部位置记录的摘�
 
 退出码：`0` 为配置检查完成且未达到失败阈值，`1` 为达到阈值，`2` 为部分覆盖或错误。默认失败阈值为 `high`；不应把退出 `0` 理解为完全安全。
 
+可参考 [CI 审计示例](../README.md#use-the-audit-as-a-ci-gate)，在保留 JSON 报告的同时把退出码传给 CI。
+
 完整用法、演示与支持矩阵见 [英文 README](../README.md)，实际验证范围见 [验证记录](verification.md)。
 
 ## 三条代码保护链路
