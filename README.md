@@ -42,9 +42,8 @@ Source archives and release notes are available on [Releases](https://github.com
 Install v0.1.1 using the command above. Choose a fresh destination if `../demo-protected` already exists. The last two commands use Node.js to compare the sample's runtime output.
 
 ```bash
-git clone https://github.com/ShuaixinHuang/rea-aegis.git
+git clone --depth 1 --branch v0.1.1 https://github.com/ShuaixinHuang/rea-aegis.git
 cd rea-aegis
-git checkout v0.1.1
 rea-aegis audit examples/demo --format json   # exit 1: embedded source
 rea-aegis harden examples/demo ../demo-protected --remove-source-maps
 # Copy receipt_sha256 from the harden output and pass it here.
