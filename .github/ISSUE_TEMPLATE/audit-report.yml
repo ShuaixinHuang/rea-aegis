@@ -1,0 +1,24 @@
+name: Audit feedback
+description: Report an unexpected result from auditing a release artifact.
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the REAegis version, Python version, OS and artifact format.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the audit command and a minimal public or synthetic fixture, or describe how to generate one. Follow SECURITY.md for sensitive reports.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual results
+      description: Include the exit code and relevant rule IDs or errors. Redact private paths and sensitive values.
+    validations:
+      required: true

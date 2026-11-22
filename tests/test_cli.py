@@ -98,6 +98,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertEqual(json.loads(after), {"total": 13.5})
 
+    def test_text_report_shows_byte_offset_without_matching_value(self):
+        path = self.root / "release.txt"
+        marker = "-----BEGIN PRIVATE KEY-----"
+        path.write_bytes(b"hi " + marker.encode())
+        result = self.cli("audit", path)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('"release.txt" (byte 3)', result.stdout)
+        self.assertNotIn(marker, result.stdout)
+
     def test_incomplete_is_distinct_from_no_high_findings(self):
         path = self.root / "file"
         path.write_bytes(b"a" * 10)
@@ -105,6 +114,38 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         report = json.loads(result.stdout)
         self.assertFalse(report["runs"][0]["invocations"][0]["executionSuccessful"])
+
+    def test_audit_passes_all_configured_budgets_to_the_report(self):
+        result = self.cli(
+            "audit",
+            ROOT / "examples/demo",
+            "--format",
+            "json",
+            "--max-entries",
+            "2",
+            "--max-file-bytes",
+            "0",
+            "--max-total-bytes",
+            "0",
+            "--max-archive-bytes",
+            "30",
+            "--max-header-bytes",
+            "20",
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["examined_bytes"], 0)
+        self.assertEqual(report["members"], 2)
+        self.assertEqual(
+            report["limits"],
+            {
+                "files": 2,
+                "file_bytes": 0,
+                "total_bytes": 0,
+                "archive_bytes": 30,
+                "header_bytes": 20,
+            },
+        )
 
     def test_invalid_arguments_and_missing_file_are_errors(self):
         self.assertEqual(

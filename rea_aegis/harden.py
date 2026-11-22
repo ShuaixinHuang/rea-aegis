@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 from pathlib import Path, PurePosixPath
@@ -20,6 +21,8 @@ from .artifacts import (
 from .audit import source_map
 
 RECEIPT = ".rea-aegis.json"
+RECEIPT_LIMIT = 4 * 1024 * 1024
+SHA256_HEX = re.compile(r"[0-9a-fA-F]{64}")
 
 
 def canonical(value: object) -> bytes:
@@ -75,10 +78,16 @@ def file_digest(path: Path, destination: Path | None = None) -> dict:
     }
 
 
-def tree_inventory(root: Path) -> tuple[list[str], list[str]]:
+def tree_inventory(
+    root: Path, *, includes_receipt: bool = False
+) -> tuple[list[str], list[str]]:
     paths, directories = [], []
     # Only inventory here; byte hashing/copying is streamed separately.
-    for item in directory_members(root, Limits(file_bytes=0, total_bytes=0)):
+    defaults = Limits()
+    limits = Limits(
+        files=defaults.files + int(includes_receipt), file_bytes=0, total_bytes=0
+    )
+    for item in directory_members(root, limits):
         if item.kind == "directory":
             directories.append(safe_relative(item.path))
             continue
@@ -113,9 +122,9 @@ def harden(
     ) or resolved_source.is_relative_to(resolved_output):
         raise ArtifactError("Input and output must be disjoint directories")
     names, directories = tree_inventory(source)
-    if RECEIPT in names:
+    if RECEIPT in names or RECEIPT in directories:
         raise ArtifactError(
-            "Input already contains a receipt; use the original release directory"
+            "Input already uses the reserved receipt path; use the original release directory"
         )
     omitted = {safe_relative(name) for name in (omit or [])}
     if not omitted.issubset(names):
@@ -147,6 +156,19 @@ def harden(
                     "reason": "explicit-omit" if name in omitted else "source-map",
                 }
             )
+        else:
+            kept.append({"path": name, **facts})
+    receipt = {
+        "schema_version": 1,
+        "tool_version": __version__,
+        "files": kept,
+        "directories": directories,
+        "removed": removed,
+        "policy": {"remove_source_maps": remove_maps, "omit": sorted(omitted)},
+    }
+    encoded = canonical(receipt)
+    if len(encoded) > RECEIPT_LIMIT:
+        raise ArtifactError("Receipt exceeds 4 MiB")
     # Exclusive directory creation; never overwrite an existing output.
     output.mkdir(mode=0o700)
     output_info = output.stat()
@@ -159,49 +181,71 @@ def harden(
                 facts = file_digest(source / name, output / name)
                 if facts != before[name]:
                     raise ArtifactError(f"Input changed during copy: {name}")
-                kept.append({"path": name, **facts})
         if tree_inventory(source) != (names, directories):
             raise ArtifactError("Input inventory changed during hardening")
         for name in names:
             if file_digest(source / name) != before[name]:
                 raise ArtifactError(f"Input changed during hardening: {name}")
-        receipt = {
-            "schema_version": 1,
-            "tool_version": __version__,
-            "files": kept,
-            "directories": directories,
-            "removed": removed,
-            "policy": {"remove_source_maps": remove_maps, "omit": sorted(omitted)},
-        }
-        encoded = canonical(receipt)
         with (output / RECEIPT).open("xb") as stream:
             stream.write(encoded)
+        digest = hashlib.sha256(encoded).hexdigest()
+        verification = verify(output)
+        if verification["receipt_sha256"] != digest:
+            raise ArtifactError("Receipt changed during hardening")
         return {
             "output": str(output),
             "kept_files": len(kept),
             "removed_files": len(removed),
-            "receipt_sha256": hashlib.sha256(encoded).hexdigest(),
-            "verification": verify(output),
+            "receipt_sha256": digest,
+            "verification": verification,
         }
-    except BaseException:
+    except BaseException as error:
         # Only remove the exact directory created by this invocation.
-        current = output.lstat()
-        if (current.st_dev, current.st_ino) == (output_info.st_dev, output_info.st_ino):
-            shutil.rmtree(output)
+        try:
+            current = output.lstat()
+            if (current.st_dev, current.st_ino) == (
+                output_info.st_dev,
+                output_info.st_ino,
+            ):
+                shutil.rmtree(output)
+        except FileNotFoundError:
+            pass
+        except OSError as cleanup_error:
+            error.add_note(f"Could not clean up the output directory: {cleanup_error}")
         raise
 
 
+def check_inventory(label: str, actual: set[str], expected: set[str]) -> None:
+    missing, unexpected = expected - actual, actual - expected
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append(f"{len(missing)} missing, first {min(missing)!r}")
+        if unexpected:
+            details.append(f"{len(unexpected)} unexpected, first {min(unexpected)!r}")
+        raise ArtifactError(f"Output {label} inventory differs: " + "; ".join(details))
+
+
 def verify(root: Path, expected_receipt: str | None = None) -> dict:
+    if expected_receipt is not None:
+        if not isinstance(expected_receipt, str) or not SHA256_HEX.fullmatch(
+            expected_receipt
+        ):
+            raise ArtifactError("Expected a 64-digit hexadecimal receipt SHA-256")
+        expected_receipt = expected_receipt.lower()
     if root.is_symlink() or not root.is_dir():
         raise ArtifactError("Verification requires a regular directory")
     with regular_file(root / RECEIPT) as stream:
-        data = stream.read(4 * 1024 * 1024 + 1)
-    if len(data) > 4 * 1024 * 1024:
+        data = stream.read(RECEIPT_LIMIT + 1)
+    if len(data) > RECEIPT_LIMIT:
         raise ArtifactError("Receipt exceeds 4 MiB")
     digest = hashlib.sha256(data).hexdigest()
     if expected_receipt is not None and digest != expected_receipt:
         raise ArtifactError("Receipt does not match the externally pinned SHA-256")
-    receipt = parse_json(data)
+    try:
+        receipt = parse_json(data)
+    except RecursionError as error:
+        raise ArtifactError("Receipt JSON nesting exceeds the parser limit") from error
     if (
         not isinstance(receipt, dict)
         or type(receipt.get("schema_version")) is not int
@@ -218,13 +262,18 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
             or type(row.get("bytes")) is not int
             or row["bytes"] < 0
             or not isinstance(row.get("sha256"), str)
+            or not SHA256_HEX.fullmatch(row["sha256"])
             or type(row.get("executable")) is not bool
         ):
             raise ArtifactError("Invalid file receipt")
         name = safe_relative(row["path"])
         if name == RECEIPT or name in expected:
             raise ArtifactError("Duplicate or reserved receipt file path")
-        expected[name] = {key: row[key] for key in ("sha256", "bytes", "executable")}
+        expected[name] = {
+            "sha256": row["sha256"].lower(),
+            "bytes": row["bytes"],
+            "executable": row["executable"],
+        }
     directories = receipt["directories"]
     if any(not isinstance(name, str) for name in directories) or len(
         set(directories)
@@ -232,11 +281,9 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
         raise ArtifactError("Invalid directory receipt")
     for name in directories:
         safe_relative(name)
-    names, actual_directories = tree_inventory(root)
-    if set(names) != set(expected) | {RECEIPT}:
-        raise ArtifactError("Output inventory differs: missing or unexpected files")
-    if actual_directories != sorted(directories):
-        raise ArtifactError("Output directory inventory differs")
+    names, actual_directories = tree_inventory(root, includes_receipt=True)
+    check_inventory("file", set(names), set(expected) | {RECEIPT})
+    check_inventory("directory", set(actual_directories), set(directories))
     for name, facts in expected.items():
         actual = file_digest(root / name)
         # Windows does not preserve POSIX executable mode semantics.
@@ -247,7 +294,7 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
         )
         if any(actual[key] != facts[key] for key in keys):
             raise ArtifactError(f"Output file differs from receipt: {name}")
-    if tree_inventory(root) != (names, actual_directories):
+    if tree_inventory(root, includes_receipt=True) != (names, actual_directories):
         raise ArtifactError("Output inventory changed during verification")
     return {
         "ok": True,

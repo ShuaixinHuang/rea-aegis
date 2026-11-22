@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from rea_aegis.artifacts import ArtifactError
+from rea_aegis.artifacts import ArtifactError, Limits
 from rea_aegis.harden import RECEIPT, canonical, harden, verify
 
 
@@ -47,7 +47,7 @@ class HardenTests(unittest.TestCase):
         self.harden()
         self.assertTrue((self.output / "cache/empty").is_dir())
         (self.output / "cache/empty").rmdir()
-        with self.assertRaises(ArtifactError):
+        with self.assertRaisesRegex(ArtifactError, "directory inventory.*cache/empty"):
             verify(self.output)
 
     def test_no_overwrite_or_nested_output(self):
@@ -59,6 +59,27 @@ class HardenTests(unittest.TestCase):
         for output in [self.source, self.source / "nested", self.root]:
             with self.assertRaises(ArtifactError):
                 harden(self.source, output, remove_maps=True)
+
+    def test_hardening_at_entry_limit_allows_one_generated_receipt(self):
+        def tiny_limits(**kwargs):
+            return Limits(**({"files": 2} | kwargs))
+
+        (self.source / "main.js.map").rename(self.source / "metadata.json")
+        with patch("rea_aegis.harden.Limits", side_effect=tiny_limits):
+            result = self.harden()
+            self.assertEqual(result["kept_files"], 2)
+            self.assertTrue(verify(self.output, result["receipt_sha256"])["ok"])
+            (self.source / ".env").write_text("HOST=localhost")
+            with self.assertRaisesRegex(ArtifactError, "Entry limit"):
+                harden(self.source, self.root / "extra", omit=[".env"])
+
+    def test_reserved_receipt_directory_is_rejected_before_copying(self):
+        (self.source / RECEIPT).mkdir()
+        with patch("rea_aegis.harden.file_digest") as digest:
+            with self.assertRaisesRegex(ArtifactError, "reserved receipt path"):
+                self.harden()
+        digest.assert_not_called()
+        self.assertFalse(self.output.exists())
 
     def test_uninterpretable_maps_are_not_deleted_by_suffix(self):
         (self.source / "main.js.map").write_text("runtime lookup table")
@@ -88,6 +109,16 @@ class HardenTests(unittest.TestCase):
         with self.assertRaises(ArtifactError):
             verify(self.output)
 
+    def test_inventory_error_identifies_missing_and_unexpected_files(self):
+        self.harden()
+        (self.output / "main.js").rename(self.output / "renamed.js")
+        with self.assertRaisesRegex(
+            ArtifactError,
+            r"file inventory differs: 1 missing, first 'main\.js'.*"
+            r"1 unexpected, first 'renamed\.js'",
+        ):
+            verify(self.output)
+
     def test_receipt_is_not_its_own_trust_anchor(self):
         result = self.harden()
         value = json.loads((self.output / RECEIPT).read_bytes())
@@ -110,6 +141,46 @@ class HardenTests(unittest.TestCase):
             with self.assertRaises(ArtifactError):
                 verify(self.output)
 
+    def test_oversized_receipt_is_rejected_before_copying(self):
+        with patch("rea_aegis.harden.RECEIPT_LIMIT", 10):
+            with self.assertRaisesRegex(ArtifactError, "Receipt exceeds"):
+                self.harden()
+        self.assertFalse(self.output.exists())
+
+    def test_hardening_does_not_return_a_digest_for_a_replaced_receipt(self):
+        def replace_and_verify(root):
+            path = root / RECEIPT
+            path.write_bytes(path.read_bytes() + b" ")
+            return verify(root)
+
+        with patch("rea_aegis.harden.verify", side_effect=replace_and_verify):
+            with self.assertRaisesRegex(ArtifactError, "Receipt changed"):
+                self.harden()
+        self.assertFalse(self.output.exists())
+
+    def test_external_pin_accepts_hex_case_and_identifies_invalid_input(self):
+        digest = self.harden()["receipt_sha256"]
+        self.assertTrue(verify(self.output, digest.upper())["receipt_pinned"])
+        with self.assertRaisesRegex(ArtifactError, "64-digit hexadecimal"):
+            verify(self.output, "z" * 64)
+
+    def test_file_digest_in_receipt_must_be_hexadecimal(self):
+        self.harden()
+        path = self.output / RECEIPT
+        value = json.loads(path.read_bytes())
+        value["files"][0]["sha256"] = "g" * 64
+        path.write_bytes(canonical(value))
+        with patch("rea_aegis.harden.tree_inventory") as inventory:
+            with self.assertRaisesRegex(ArtifactError, "Invalid file receipt"):
+                verify(self.output)
+        inventory.assert_not_called()
+
+    def test_excessively_nested_receipt_fails_as_an_artifact_error(self):
+        self.harden()
+        (self.output / RECEIPT).write_bytes(b"[" * 10_000 + b"]" * 10_000)
+        with self.assertRaisesRegex(ArtifactError, "JSON nesting"):
+            verify(self.output)
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 
@@ -123,6 +194,20 @@ class HardenTests(unittest.TestCase):
                 self.harden()
         self.assertFalse(self.output.exists())
         self.assertTrue((self.source / "main.js").exists())
+
+    def test_missing_output_during_cleanup_does_not_mask_copy_error(self):
+        from rea_aegis.harden import file_digest
+
+        def fail_copy(path, destination=None):
+            if destination is not None:
+                self.output.rmdir()
+                raise OSError("controlled copy failure")
+            return file_digest(path)
+
+        with patch("rea_aegis.harden.file_digest", side_effect=fail_copy):
+            with self.assertRaisesRegex(OSError, "controlled copy failure"):
+                self.harden()
+        self.assertFalse(self.output.exists())
 
     def test_source_map_changed_after_hash_is_not_silently_removed(self):
         from rea_aegis.harden import file_digest

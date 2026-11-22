@@ -1,10 +1,12 @@
 # REAegis
 
-**保护可执行逻辑，分离密钥，验证发布产物。**
+**在发布前排查意外打包的源码和敏感信息。**
 
 REAegis 提供认证加密代码保护、服务端逻辑隔离与发布验证。发布流程采用“审计 → 明确选择移除项 → 生成独立副本 → 验证”的流程，帮助减少向 REA 等逆向工具直接暴露的源码、配置和调试信息。项目与 REA 维护者没有隶属关系。
 
-下文列出当前版本的保护能力与操作方法，完整部署边界见 [安全模型](../SECURITY.md)，测试条件见 [验证记录](verification.md)。
+可以用 [内置演示](#试跑内置演示) 复现一个常见问题：压缩后的 JavaScript 配套的 source map 仍包含原始源码。演示会审计样例、生成移除 source map 的独立副本，再用回执摘要验证副本，并比较两次运行的输出。
+
+已发布版本见 [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases)，待发布修复见 [更新日志](../CHANGELOG.md)，主分支测试结果见 [CI](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml?query=branch%3Amain)。如果可以用公开或合成样例复现异常，请 [提交审计反馈](https://github.com/ShuaixinHuang/rea-aegis/issues/new?template=audit-report.yml)。涉及漏洞或敏感信息时，请参照 [安全策略](../SECURITY.md)。
 
 ## 安装与使用
 
@@ -23,6 +25,22 @@ rea-aegis verify ./protected --receipt-sha256 从可信外部位置记录的摘�
 
 保留的文件字节不变，空目录会保留。回执记录文件清单与 SHA-256，但不是数字签名；如果攻击者能替换产物和回执，就能同时重新计算二者，因此需要把回执摘要保存在可信外部位置。验证结果不等于应用运行行为证明。所有者、ACL、扩展属性、硬链接关系、时间戳及特殊权限位不保留，目录使用新建权限；发布前仍需运行自己的应用与安装测试。
 
+## 试跑内置演示
+
+先按上面的命令安装 v0.1.1。以下命令使用同版本的样例，输出目录 `../demo-protected` 需要尚未创建。
+
+```bash
+git clone --depth 1 --branch v0.1.1 https://github.com/ShuaixinHuang/rea-aegis.git
+cd rea-aegis
+rea-aegis audit examples/demo --format json   # 退出码 1，发现嵌入源码
+rea-aegis harden examples/demo ../demo-protected --remove-source-maps
+# 用上一步输出的 receipt_sha256 替换下方的占位符
+rea-aegis verify ../demo-protected --receipt-sha256 YOUR_RECORDED_SHA256
+rea-aegis audit ../demo-protected --format json   # 默认阈值下退出码 0
+```
+
+如果已安装 Node.js，可以分别运行 `node examples/demo/main.js` 和 `node ../demo-protected/main.js`。两次均应输出 `{"total":13.5}`。
+
 ## 能力与边界
 
 - 审计目录、单个文件、经典单磁盘 ZIP、Electron ASAR。
@@ -35,6 +53,8 @@ rea-aegis verify ./protected --receipt-sha256 从可信外部位置记录的摘�
 默认限制：10,000 项、每成员 2 MiB、累计内容 64 MiB、ZIP 载体 32 MiB、归档头 4 MiB。内容预算可用 `--max-file-bytes` 和 `--max-total-bytes` 明确提高。
 
 退出码：`0` 为配置检查完成且未达到失败阈值，`1` 为达到阈值，`2` 为部分覆盖或错误。默认失败阈值为 `high`；不应把退出 `0` 理解为完全安全。
+
+可参考 [CI 审计示例](../README.md#use-the-audit-as-a-ci-gate)，在保留 JSON 报告的同时把退出码传给 CI。
 
 完整用法、演示与支持矩阵见 [英文 README](../README.md)，实际验证范围见 [验证记录](verification.md)。
 

@@ -206,6 +206,24 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(report["examined_bytes"], 0)
         self.assertEqual(report["coverage"], "partial")
 
+    def test_single_file_honors_zero_entry_budget(self):
+        artifact = self.root / "release.js"
+        artifact.write_bytes(b"content")
+        report = audit(artifact, Limits(files=0))
+        self.assertEqual(exit_status(report, "high"), 2)
+        self.assertEqual(report["members"], 0)
+        self.assertIn("configured limit", report["errors"][0])
+
+    def test_sarif_reports_byte_offsets_only_for_byte_findings(self):
+        (self.root / ".env").write_bytes(b"abc-----BEGIN PRIVATE KEY-----")
+        results = sarif(audit(self.root))["runs"][0]["results"]
+        locations = {
+            result["ruleId"]: result["locations"][0]["physicalLocation"]
+            for result in results
+        }
+        self.assertEqual(locations["private-key"]["region"], {"byteOffset": 3})
+        self.assertNotIn("region", locations["environment-file"])
+
     def test_sarif_escapes_artifact_names(self):
         (self.root / "a #.ts").write_text("const n = 1;")
         report = sarif(audit(self.root))

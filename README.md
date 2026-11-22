@@ -2,15 +2,15 @@
 
 # REAegis
 
-**Protect executable logic. Separate keys. Verify releases.**
+**Find accidental source and secret exposure before you ship.**
 
 [![CI](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-REAegis combines authenticated code protection, server-side logic isolation and release verification. It gives software authors control over the executable code, keys and metadata available to REA and other reverse-engineering tools.
+REAegis is a Python CLI for auditing release directories, ZIP archives and Electron ASAR packages. It flags embedded source maps, private-key markers and credential candidates, and can verify the integrity of a separate release copy. It also supports authenticated code protection and server-held logic.
 
-[中文说明](docs/README.zh-CN.md) · [Threat model](SECURITY.md) · [Verification](docs/verification.md)
+[中文说明](docs/README.zh-CN.md) · [Try the demo](#reproduce-the-demo) · [Threat model](SECURITY.md)
 
 </div>
 
@@ -36,6 +36,30 @@ rea-aegis --version
 ```
 
 Source archives and release notes are available on [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases).
+
+## Reproduce the demo
+
+Install v0.1.1 using the command above. Choose a fresh destination if `../demo-protected` already exists. The last two commands use Node.js to compare the sample's runtime output.
+
+```bash
+git clone --depth 1 --branch v0.1.1 https://github.com/ShuaixinHuang/rea-aegis.git
+cd rea-aegis
+rea-aegis audit examples/demo --format json   # exit 1: embedded source
+rea-aegis harden examples/demo ../demo-protected --remove-source-maps
+# Copy receipt_sha256 from the harden output and pass it here.
+rea-aegis verify ../demo-protected --receipt-sha256 YOUR_RECORDED_SHA256
+rea-aegis audit ../demo-protected --format json # exit 0 at high threshold
+node examples/demo/main.js
+node ../demo-protected/main.js
+```
+
+Both Node commands print `{"total":13.5}`. The source map disappears; `main.js` remains byte-identical. Its mapping reference remains and is still reported at medium severity. This demonstrates source exposure reduction with byte-preserved runtime code and matching application output. See the verification record for the complete test conditions.
+
+## Maintenance and feedback
+
+Check [GitHub Releases](https://github.com/ShuaixinHuang/rea-aegis/releases) for published versions, the [changelog](CHANGELOG.md) for pending fixes, and [CI runs](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml?query=branch%3Amain) for test results on Linux, macOS and Windows. The [verification record](docs/verification.md) describes the fixtures and what the checks establish.
+
+If a public or synthetic release artifact gives an unexpected result, [report an audit issue](https://github.com/ShuaixinHuang/rea-aegis/issues/new?template=audit-report.yml). Follow the [security policy](SECURITY.md) for vulnerabilities or sensitive details.
 
 ## Three protection layers
 
@@ -99,6 +123,22 @@ The input is unchanged. Kept files retain their exact bytes, empty directories a
 
 Partial scans never silently pass CI. JSON and SARIF 2.1.0 carry coverage and errors. Byte offsets identify sensitive matches without including matched values in reports; filenames and selected artifact paths remain visible.
 
+### Use the audit as a CI gate
+
+Run the audit against the finished artifact. This Bash step preserves the report for inspection while forwarding the audit's original exit code to CI.
+
+```bash
+status=0
+rea-aegis audit ./dist --format json --fail-on high > rea-aegis-report.json || status=$?
+case "$status" in
+  1) echo "Review the findings that reached the release threshold." >&2 ;;
+  2) echo "Review coverage, unread members, and errors before releasing." >&2 ;;
+esac
+exit "$status"
+```
+
+Configure your CI to retain the report on failure if the scan output can be shared with everyone who has access to the job. Reports include paths and filenames.
+
 ## Capabilities in 0.1.1
 
 | Input / capability | Support |
@@ -118,22 +158,6 @@ Rules observe v3 source maps and embedded sources, `sourceMappingURL` markers, p
 Defaults: **10,000 entries**, **2 MiB per member**, **64 MiB total content**, **32 MiB ZIP carrier**, **4 MiB archive header**. Larger/unread members, encrypted members and nested archives produce partial coverage. Raise `--max-file-bytes` / `--max-total-bytes` deliberately when appropriate. `complete` refers to these configured checks, not full program analysis or proof of secrecy.
 
 An unsigned receipt detects changes only relative to the receipt you trust. An attacker who can replace both output and receipt can recompute both. Record its SHA-256 outside the artifact and pass `--receipt-sha256`; that still does not replace release signing or prove runtime equivalence.
-
-## Reproduce the demo
-
-```bash
-git clone https://github.com/ShuaixinHuang/rea-aegis.git
-cd rea-aegis
-python -m pip install .
-rea-aegis audit examples/demo --format json   # exit 1: embedded source
-rea-aegis harden examples/demo ../demo-protected --remove-source-maps
-rea-aegis verify ../demo-protected
-rea-aegis audit ../demo-protected --format json # exit 0 at high threshold
-node examples/demo/main.js
-node ../demo-protected/main.js
-```
-
-Both Node commands print `{"total":13.5}`. The source map disappears; `main.js` remains byte-identical. Its mapping reference remains and is still reported at medium severity. This demonstrates source exposure reduction with byte-preserved runtime code and matching application output. See the verification record for the complete test conditions.
 
 ## Develop
 
