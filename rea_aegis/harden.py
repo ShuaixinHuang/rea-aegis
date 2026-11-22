@@ -199,11 +199,19 @@ def harden(
             "receipt_sha256": digest,
             "verification": verification,
         }
-    except BaseException:
+    except BaseException as error:
         # Only remove the exact directory created by this invocation.
-        current = output.lstat()
-        if (current.st_dev, current.st_ino) == (output_info.st_dev, output_info.st_ino):
-            shutil.rmtree(output)
+        try:
+            current = output.lstat()
+            if (current.st_dev, current.st_ino) == (
+                output_info.st_dev,
+                output_info.st_ino,
+            ):
+                shutil.rmtree(output)
+        except FileNotFoundError:
+            pass
+        except OSError as cleanup_error:
+            error.add_note(f"Could not clean up the output directory: {cleanup_error}")
         raise
 
 

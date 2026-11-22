@@ -185,6 +185,20 @@ class HardenTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertTrue((self.source / "main.js").exists())
 
+    def test_missing_output_during_cleanup_does_not_mask_copy_error(self):
+        from rea_aegis.harden import file_digest
+
+        def fail_copy(path, destination=None):
+            if destination is not None:
+                self.output.rmdir()
+                raise OSError("controlled copy failure")
+            return file_digest(path)
+
+        with patch("rea_aegis.harden.file_digest", side_effect=fail_copy):
+            with self.assertRaisesRegex(OSError, "controlled copy failure"):
+                self.harden()
+        self.assertFalse(self.output.exists())
+
     def test_source_map_changed_after_hash_is_not_silently_removed(self):
         from rea_aegis.harden import file_digest
 
