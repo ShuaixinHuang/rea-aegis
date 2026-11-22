@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.format == "text":
                 print(
                     f"REAegis {__version__} | coverage={report['coverage']} | members={report['members']}"
+                    f" | examined_bytes={report['examined_bytes']}/{report['declared_bytes']}"
                 )
                 for row in report["findings"]:
                     # JSON quoting prevents terminal controls in malicious filenames.
