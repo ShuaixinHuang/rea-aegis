@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Expose entry, member, total, ZIP carrier, and archive header budgets in the audit CLI. A zero content budget still inventories entries and reports partial coverage for unread content.
+- Apply entry limits to standalone files as well as directory and archive inputs.
+- Include member-relative byte offsets in SARIF for byte-pattern findings and examined/declared byte totals in text reports.
+- Verify wheels built from the source distribution in CI and retain both tested distribution files as run artifacts.
+
 - Enforce the shared directory entry budget during enumeration, before sorting or allocating an unbounded directory listing. Oversized directories fail closed with partial audit coverage.
 - Reject negative, boolean and non-integer scan limits; retain zero-byte budgets for inventory-only traversal.
 - Add regression coverage for bounded enumeration, resource cleanup and directory budget boundaries.

@@ -22,6 +22,9 @@ rea-aegis = "rea_aegis.cli:main"
 [project.urls]
 Homepage = "https://github.com/ShuaixinHuang/rea-aegis"
 Issues = "https://github.com/ShuaixinHuang/rea-aegis/issues"
+Documentation = "https://github.com/ShuaixinHuang/rea-aegis#readme"
+Changelog = "https://github.com/ShuaixinHuang/rea-aegis/blob/main/CHANGELOG.md"
+Releases = "https://github.com/ShuaixinHuang/rea-aegis/releases"
 
 [tool.setuptools.packages.find]
 include = ["rea_aegis*"]
