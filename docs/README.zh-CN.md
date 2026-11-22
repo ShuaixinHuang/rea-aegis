@@ -1,10 +1,12 @@
 # REAegis
 
-**保护可执行逻辑，分离密钥，验证发布产物。**
+**在发布前排查意外打包的源码和敏感信息。**
 
 REAegis 提供认证加密代码保护、服务端逻辑隔离与发布验证。发布流程采用“审计 → 明确选择移除项 → 生成独立副本 → 验证”的流程，帮助减少向 REA 等逆向工具直接暴露的源码、配置和调试信息。项目与 REA 维护者没有隶属关系。
 
-下文列出当前版本的保护能力与操作方法，完整部署边界见 [安全模型](../SECURITY.md)，测试条件见 [验证记录](verification.md)。
+可以用 [内置演示](../README.md#reproduce-the-demo) 复现一个常见问题：压缩后的 JavaScript 配套的 source map 仍包含原始源码。演示会审计样例、生成移除 source map 的独立副本，再用回执摘要验证副本，并比较两次运行的输出。
+
+已发布版本见 [Releases](https://github.com/ShuaixinHuang/rea-aegis/releases)，待发布修复见 [更新日志](../CHANGELOG.md)，主分支测试结果见 [CI](https://github.com/ShuaixinHuang/rea-aegis/actions/workflows/ci.yml?query=branch%3Amain)。如果可以用公开或合成样例复现异常，请 [提交审计反馈](https://github.com/ShuaixinHuang/rea-aegis/issues/new?template=audit-report.yml)。涉及漏洞或敏感信息时，请参照 [安全策略](../SECURITY.md)。
 
 ## 安装与使用
 
