@@ -98,6 +98,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertEqual(json.loads(after), {"total": 13.5})
 
+    def test_text_report_shows_byte_offset_without_matching_value(self):
+        path = self.root / "release.txt"
+        marker = "-----BEGIN PRIVATE KEY-----"
+        path.write_bytes(b"hi " + marker.encode())
+        result = self.cli("audit", path)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('"release.txt" (byte 3)', result.stdout)
+        self.assertNotIn(marker, result.stdout)
+
     def test_incomplete_is_distinct_from_no_high_findings(self):
         path = self.root / "file"
         path.write_bytes(b"a" * 10)

@@ -163,8 +163,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 for row in report["findings"]:
                     # JSON quoting prevents terminal controls in malicious filenames.
+                    location = json.dumps(row["path"])
+                    if "byte_offset" in row:
+                        location += f" (byte {row['byte_offset']})"
                     print(
-                        f"{row['severity'].upper():8} {row['rule']:24} {json.dumps(row['path'])}: {row['message']}"
+                        f"{row['severity'].upper():8} {row['rule']:24} {location}: {row['message']}"
                     )
                 for error in report["errors"]:
                     print(f"ERROR {json.dumps(error)}")

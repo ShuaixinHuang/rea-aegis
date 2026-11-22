@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Show zero-based byte offsets in text findings without printing matched values.
+- Reject reserved receipt paths and oversized receipts before copying. Account for the generated receipt in the output entry budget and verify the digest returned by hardening.
+- Validate digest syntax, accept uppercase hexadecimal pins, and report excessive receipt nesting as a verification error.
+- Identify missing or unexpected output paths during verification and preserve the original hardening error when cleanup encounters a filesystem error.
+
 - Expose entry, member, total, ZIP carrier, and archive header budgets in the audit CLI. A zero content budget still inventories entries and reports partial coverage for unread content.
 - Apply entry limits to standalone files as well as directory and archive inputs.
 - Include member-relative byte offsets in SARIF for byte-pattern findings and examined/declared byte totals in text reports.
