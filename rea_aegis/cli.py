@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 from . import __version__
@@ -23,6 +22,15 @@ def positive(value: str) -> int:
     return int(value)
 
 
+def budget(value: str) -> int:
+    if not value.isascii() or not value.isdecimal():
+        raise argparse.ArgumentTypeError("Expected a nonnegative decimal integer")
+    try:
+        return int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("Decimal integer is too large") from error
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="rea-aegis", description="Audit → harden → verify release exposure."
@@ -35,8 +43,34 @@ def main(argv: list[str] | None = None) -> int:
     scan.add_argument("artifact", type=Path)
     scan.add_argument("--format", choices=["text", "json", "sarif"], default="text")
     scan.add_argument("--fail-on", choices=list(SEVERITY), default="high")
-    scan.add_argument("--max-file-bytes", type=positive, default=Limits().file_bytes)
-    scan.add_argument("--max-total-bytes", type=positive, default=Limits().total_bytes)
+    defaults = Limits()
+    scan.add_argument(
+        "--max-entries", type=budget, default=defaults.files, help="Maximum entries"
+    )
+    scan.add_argument(
+        "--max-file-bytes",
+        type=budget,
+        default=defaults.file_bytes,
+        help="Maximum content bytes per member",
+    )
+    scan.add_argument(
+        "--max-total-bytes",
+        type=budget,
+        default=defaults.total_bytes,
+        help="Maximum total content bytes",
+    )
+    scan.add_argument(
+        "--max-archive-bytes",
+        type=budget,
+        default=defaults.archive_bytes,
+        help="Maximum ZIP carrier size in bytes",
+    )
+    scan.add_argument(
+        "--max-header-bytes",
+        type=budget,
+        default=defaults.header_bytes,
+        help="Maximum archive header size in bytes",
+    )
     protect = commands.add_parser(
         "harden", help="Create a new, disjoint directory; never modify the input"
     )
@@ -114,10 +148,12 @@ def main(argv: list[str] | None = None) -> int:
         args.arguments.extend(forwarded)
     try:
         if args.command == "audit":
-            limits = replace(
-                Limits(),
+            limits = Limits(
+                files=args.max_entries,
                 file_bytes=args.max_file_bytes,
                 total_bytes=args.max_total_bytes,
+                archive_bytes=args.max_archive_bytes,
+                header_bytes=args.max_header_bytes,
             )
             report = audit(args.artifact, limits)
             if args.format == "text":

@@ -106,6 +106,38 @@ class CliTests(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertFalse(report["runs"][0]["invocations"][0]["executionSuccessful"])
 
+    def test_audit_passes_all_configured_budgets_to_the_report(self):
+        result = self.cli(
+            "audit",
+            ROOT / "examples/demo",
+            "--format",
+            "json",
+            "--max-entries",
+            "2",
+            "--max-file-bytes",
+            "0",
+            "--max-total-bytes",
+            "0",
+            "--max-archive-bytes",
+            "30",
+            "--max-header-bytes",
+            "20",
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["examined_bytes"], 0)
+        self.assertEqual(report["members"], 2)
+        self.assertEqual(
+            report["limits"],
+            {
+                "files": 2,
+                "file_bytes": 0,
+                "total_bytes": 0,
+                "archive_bytes": 30,
+                "header_bytes": 20,
+            },
+        )
+
     def test_invalid_arguments_and_missing_file_are_errors(self):
         self.assertEqual(
             self.cli("audit", self.root, "--max-file-bytes", "-1").returncode, 2
