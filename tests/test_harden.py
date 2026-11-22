@@ -148,6 +148,12 @@ class HardenTests(unittest.TestCase):
                 self.harden()
         self.assertFalse(self.output.exists())
 
+    def test_external_pin_accepts_hex_case_and_identifies_invalid_input(self):
+        digest = self.harden()["receipt_sha256"]
+        self.assertTrue(verify(self.output, digest.upper())["receipt_pinned"])
+        with self.assertRaisesRegex(ArtifactError, "64-digit hexadecimal"):
+            verify(self.output, "z" * 64)
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 

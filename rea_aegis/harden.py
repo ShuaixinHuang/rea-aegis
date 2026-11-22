@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 from pathlib import Path, PurePosixPath
@@ -21,6 +22,7 @@ from .audit import source_map
 
 RECEIPT = ".rea-aegis.json"
 RECEIPT_LIMIT = 4 * 1024 * 1024
+SHA256_HEX = re.compile(r"[0-9a-fA-F]{64}")
 
 
 def canonical(value: object) -> bytes:
@@ -206,6 +208,12 @@ def harden(
 
 
 def verify(root: Path, expected_receipt: str | None = None) -> dict:
+    if expected_receipt is not None:
+        if not isinstance(expected_receipt, str) or not SHA256_HEX.fullmatch(
+            expected_receipt
+        ):
+            raise ArtifactError("Expected a 64-digit hexadecimal receipt SHA-256")
+        expected_receipt = expected_receipt.lower()
     if root.is_symlink() or not root.is_dir():
         raise ArtifactError("Verification requires a regular directory")
     with regular_file(root / RECEIPT) as stream:
