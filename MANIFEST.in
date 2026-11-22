@@ -1,4 +1,4 @@
-include LICENSE README.md SECURITY.md CONTRIBUTING.md
+include LICENSE README.md SECURITY.md CONTRIBUTING.md CHANGELOG.md
 recursive-include docs *.md *.json
 recursive-include examples *.js *.map
 recursive-include examples *.cjs *.json

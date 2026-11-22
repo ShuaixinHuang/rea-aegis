@@ -8,7 +8,7 @@ version = "0.1.1"
 description = "Authenticated code protection, server-held logic and release verification."
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
 authors = [{name = "ShuaixinHuang"}]
 keywords = ["release-security", "electron", "source-maps", "reverse-engineering"]
 classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent"]
