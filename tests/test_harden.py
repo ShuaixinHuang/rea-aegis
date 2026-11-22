@@ -131,6 +131,12 @@ class HardenTests(unittest.TestCase):
             with self.assertRaises(ArtifactError):
                 verify(self.output)
 
+    def test_oversized_receipt_is_rejected_before_copying(self):
+        with patch("rea_aegis.harden.RECEIPT_LIMIT", 10):
+            with self.assertRaisesRegex(ArtifactError, "Receipt exceeds"):
+                self.harden()
+        self.assertFalse(self.output.exists())
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 

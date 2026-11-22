@@ -20,6 +20,7 @@ from .artifacts import (
 from .audit import source_map
 
 RECEIPT = ".rea-aegis.json"
+RECEIPT_LIMIT = 4 * 1024 * 1024
 
 
 def canonical(value: object) -> bytes:
@@ -153,6 +154,19 @@ def harden(
                     "reason": "explicit-omit" if name in omitted else "source-map",
                 }
             )
+        else:
+            kept.append({"path": name, **facts})
+    receipt = {
+        "schema_version": 1,
+        "tool_version": __version__,
+        "files": kept,
+        "directories": directories,
+        "removed": removed,
+        "policy": {"remove_source_maps": remove_maps, "omit": sorted(omitted)},
+    }
+    encoded = canonical(receipt)
+    if len(encoded) > RECEIPT_LIMIT:
+        raise ArtifactError("Receipt exceeds 4 MiB")
     # Exclusive directory creation; never overwrite an existing output.
     output.mkdir(mode=0o700)
     output_info = output.stat()
@@ -165,21 +179,11 @@ def harden(
                 facts = file_digest(source / name, output / name)
                 if facts != before[name]:
                     raise ArtifactError(f"Input changed during copy: {name}")
-                kept.append({"path": name, **facts})
         if tree_inventory(source) != (names, directories):
             raise ArtifactError("Input inventory changed during hardening")
         for name in names:
             if file_digest(source / name) != before[name]:
                 raise ArtifactError(f"Input changed during hardening: {name}")
-        receipt = {
-            "schema_version": 1,
-            "tool_version": __version__,
-            "files": kept,
-            "directories": directories,
-            "removed": removed,
-            "policy": {"remove_source_maps": remove_maps, "omit": sorted(omitted)},
-        }
-        encoded = canonical(receipt)
         with (output / RECEIPT).open("xb") as stream:
             stream.write(encoded)
         return {
@@ -201,8 +205,8 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
     if root.is_symlink() or not root.is_dir():
         raise ArtifactError("Verification requires a regular directory")
     with regular_file(root / RECEIPT) as stream:
-        data = stream.read(4 * 1024 * 1024 + 1)
-    if len(data) > 4 * 1024 * 1024:
+        data = stream.read(RECEIPT_LIMIT + 1)
+    if len(data) > RECEIPT_LIMIT:
         raise ArtifactError("Receipt exceeds 4 MiB")
     digest = hashlib.sha256(data).hexdigest()
     if expected_receipt is not None and digest != expected_receipt:
