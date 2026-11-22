@@ -277,6 +277,8 @@ def members(path: Path, limits: Limits) -> Iterator[Member]:
     elif path.suffix.lower() == ".asar":
         yield from asar_members(path, limits)
     else:
+        if limits.files == 0:
+            raise ArtifactError("File count exceeds configured limit")
         with regular_file(path) as stream:
             size = os.fstat(stream.fileno()).st_size
             yield Member(
