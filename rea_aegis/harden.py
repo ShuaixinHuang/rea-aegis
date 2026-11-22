@@ -215,6 +215,17 @@ def harden(
         raise
 
 
+def check_inventory(label: str, actual: set[str], expected: set[str]) -> None:
+    missing, unexpected = expected - actual, actual - expected
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append(f"{len(missing)} missing, first {min(missing)!r}")
+        if unexpected:
+            details.append(f"{len(unexpected)} unexpected, first {min(unexpected)!r}")
+        raise ArtifactError(f"Output {label} inventory differs: " + "; ".join(details))
+
+
 def verify(root: Path, expected_receipt: str | None = None) -> dict:
     if expected_receipt is not None:
         if not isinstance(expected_receipt, str) or not SHA256_HEX.fullmatch(
@@ -271,10 +282,8 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
     for name in directories:
         safe_relative(name)
     names, actual_directories = tree_inventory(root, includes_receipt=True)
-    if set(names) != set(expected) | {RECEIPT}:
-        raise ArtifactError("Output inventory differs: missing or unexpected files")
-    if actual_directories != sorted(directories):
-        raise ArtifactError("Output directory inventory differs")
+    check_inventory("file", set(names), set(expected) | {RECEIPT})
+    check_inventory("directory", set(actual_directories), set(directories))
     for name, facts in expected.items():
         actual = file_digest(root / name)
         # Windows does not preserve POSIX executable mode semantics.

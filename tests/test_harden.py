@@ -47,7 +47,7 @@ class HardenTests(unittest.TestCase):
         self.harden()
         self.assertTrue((self.output / "cache/empty").is_dir())
         (self.output / "cache/empty").rmdir()
-        with self.assertRaises(ArtifactError):
+        with self.assertRaisesRegex(ArtifactError, "directory inventory.*cache/empty"):
             verify(self.output)
 
     def test_no_overwrite_or_nested_output(self):
@@ -107,6 +107,16 @@ class HardenTests(unittest.TestCase):
         (self.output / "extra").unlink()
         (self.output / "main.js").unlink()
         with self.assertRaises(ArtifactError):
+            verify(self.output)
+
+    def test_inventory_error_identifies_missing_and_unexpected_files(self):
+        self.harden()
+        (self.output / "main.js").rename(self.output / "renamed.js")
+        with self.assertRaisesRegex(
+            ArtifactError,
+            r"file inventory differs: 1 missing, first 'main\.js'.*"
+            r"1 unexpected, first 'renamed\.js'",
+        ):
             verify(self.output)
 
     def test_receipt_is_not_its_own_trust_anchor(self):
