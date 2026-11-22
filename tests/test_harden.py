@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from rea_aegis.artifacts import ArtifactError
+from rea_aegis.artifacts import ArtifactError, Limits
 from rea_aegis.harden import RECEIPT, canonical, harden, verify
 
 
@@ -59,6 +59,19 @@ class HardenTests(unittest.TestCase):
         for output in [self.source, self.source / "nested", self.root]:
             with self.assertRaises(ArtifactError):
                 harden(self.source, output, remove_maps=True)
+
+    def test_hardening_at_entry_limit_allows_one_generated_receipt(self):
+        def tiny_limits(**kwargs):
+            return Limits(**({"files": 2} | kwargs))
+
+        (self.source / "main.js.map").rename(self.source / "metadata.json")
+        with patch("rea_aegis.harden.Limits", side_effect=tiny_limits):
+            result = self.harden()
+            self.assertEqual(result["kept_files"], 2)
+            self.assertTrue(verify(self.output, result["receipt_sha256"])["ok"])
+            (self.source / ".env").write_text("HOST=localhost")
+            with self.assertRaisesRegex(ArtifactError, "Entry limit"):
+                harden(self.source, self.root / "extra", omit=[".env"])
 
     def test_reserved_receipt_directory_is_rejected_before_copying(self):
         (self.source / RECEIPT).mkdir()

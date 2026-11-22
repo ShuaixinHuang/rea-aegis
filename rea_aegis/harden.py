@@ -75,10 +75,16 @@ def file_digest(path: Path, destination: Path | None = None) -> dict:
     }
 
 
-def tree_inventory(root: Path) -> tuple[list[str], list[str]]:
+def tree_inventory(
+    root: Path, *, includes_receipt: bool = False
+) -> tuple[list[str], list[str]]:
     paths, directories = [], []
     # Only inventory here; byte hashing/copying is streamed separately.
-    for item in directory_members(root, Limits(file_bytes=0, total_bytes=0)):
+    defaults = Limits()
+    limits = Limits(
+        files=defaults.files + int(includes_receipt), file_bytes=0, total_bytes=0
+    )
+    for item in directory_members(root, limits):
         if item.kind == "directory":
             directories.append(safe_relative(item.path))
             continue
@@ -232,7 +238,7 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
         raise ArtifactError("Invalid directory receipt")
     for name in directories:
         safe_relative(name)
-    names, actual_directories = tree_inventory(root)
+    names, actual_directories = tree_inventory(root, includes_receipt=True)
     if set(names) != set(expected) | {RECEIPT}:
         raise ArtifactError("Output inventory differs: missing or unexpected files")
     if actual_directories != sorted(directories):
@@ -247,7 +253,7 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
         )
         if any(actual[key] != facts[key] for key in keys):
             raise ArtifactError(f"Output file differs from receipt: {name}")
-    if tree_inventory(root) != (names, actual_directories):
+    if tree_inventory(root, includes_receipt=True) != (names, actual_directories):
         raise ArtifactError("Output inventory changed during verification")
     return {
         "ok": True,
