@@ -154,6 +154,17 @@ class HardenTests(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactError, "64-digit hexadecimal"):
             verify(self.output, "z" * 64)
 
+    def test_file_digest_in_receipt_must_be_hexadecimal(self):
+        self.harden()
+        path = self.output / RECEIPT
+        value = json.loads(path.read_bytes())
+        value["files"][0]["sha256"] = "g" * 64
+        path.write_bytes(canonical(value))
+        with patch("rea_aegis.harden.tree_inventory") as inventory:
+            with self.assertRaisesRegex(ArtifactError, "Invalid file receipt"):
+                verify(self.output)
+        inventory.assert_not_called()
+
     def test_copy_failure_removes_only_new_output(self):
         from rea_aegis.harden import file_digest
 

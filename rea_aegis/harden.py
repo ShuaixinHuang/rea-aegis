@@ -240,13 +240,18 @@ def verify(root: Path, expected_receipt: str | None = None) -> dict:
             or type(row.get("bytes")) is not int
             or row["bytes"] < 0
             or not isinstance(row.get("sha256"), str)
+            or not SHA256_HEX.fullmatch(row["sha256"])
             or type(row.get("executable")) is not bool
         ):
             raise ArtifactError("Invalid file receipt")
         name = safe_relative(row["path"])
         if name == RECEIPT or name in expected:
             raise ArtifactError("Duplicate or reserved receipt file path")
-        expected[name] = {key: row[key] for key in ("sha256", "bytes", "executable")}
+        expected[name] = {
+            "sha256": row["sha256"].lower(),
+            "bytes": row["bytes"],
+            "executable": row["executable"],
+        }
     directories = receipt["directories"]
     if any(not isinstance(name, str) for name in directories) or len(
         set(directories)
