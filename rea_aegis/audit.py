@@ -233,7 +233,12 @@ def sarif(report: dict) -> dict:
                                 "physicalLocation": {
                                     "artifactLocation": {
                                         "uri": quote(row["path"], safe="/")
-                                    }
+                                    },
+                                    **(
+                                        {"region": {"byteOffset": row["byte_offset"]}}
+                                        if "byte_offset" in row
+                                        else {}
+                                    ),
                                 }
                             }
                         ],
